@@ -3,4 +3,9 @@ name = "yet-lamport-clock"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "lamport_clock"
+path = "src/lib.rs"
+
 [dependencies]
+rand = "0.9.2"

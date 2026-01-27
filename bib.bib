@@ -17,3 +17,29 @@
   numpages      = {8},
   keywords      = {multiprocess systems, distributed systems, computer networks, clock synchronization}
 }
+@article{10.1109/2.485846,
+  author        = {Raynal, Michel and Singhal, Mukesh},
+  title         = {Logical Time: Capturing Causality in Distributed Systems},
+  year          = {1996},
+  issue_date    = {February 1996},
+  publisher     = {IEEE Computer Society Press},
+  address       = {Washington, DC, USA},
+  volume        = {29},
+  number        = {2},
+  issn          = {0018-9162},
+  url           = {https://doi.org/10.1109/2.485846},
+  doi           = {10.1109/2.485846},
+  abstract      = {A distributed computation consists of a set of processes that cooperate and compete to achieve a common goal. These processes do not share a common global memory and communicately solely by passing messages over a communication network. The communication delay is finite but unpredictable. A process's actions are modeled as three types of events: internal, message send, and message receive. An internal event affects only the process at which it occurs, and the events at a process are linearly ordered by their order of occurrence. Send and receive events signify the flow of information between processes and establish causal dependency from the sender process to the receiver process. Consequently, the execution of a distributed application results in a set of distributed events produced by the process. The causal precedence relation induces a partial order on the events of a distributed computation. Causality among events, more formally the causal precedence relation, is a powerful concept for reasoning, analyzing, and drawing inferences about a distributed computation. Knowledge of the causal precedence relation between processes helps programmers, designers, and the system itself solve a variety of problems in distributed computing. The notion of time is basic to capturing the causality between events. Distributed systems have no built-in physical time and can only approximate it. However, in a distributed computation, both the progress and the interaction between processes occur in spurts. Consequently, logical clocks can be used to accurately capture the causality relation between events. This article presents a general framework of a system of logical clocks in distributed systems and discusses three methods--scalar, vector, and matrix--for implementing logical time in these systems.},
+  journal       = {Computer},
+  month         = feb,
+  pages         = {49–56},
+  numpages      = {8}
+}
+@book{vanSteenTanenbaum2023,
+  author        = {Maarten van Steen and Andrew S. Tanenbaum},
+  title         = {Distributed Systems},
+  edition       = {4},
+  year          = {2023},
+  publisher     = {DISTRIBUTED-SYSTEMS.NET},
+  url           = {https://www.distributed-systems.net/index.php/books/ds4/}
+}
