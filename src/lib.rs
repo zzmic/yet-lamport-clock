@@ -6,7 +6,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 /// Lamport Clock structure that encapsulates the logical clock value.
-/// Invariant: The logical clock value (time) strictly increases over time on events.
+/// Invariant: The logical clock value (time) strictly increases on events.
 pub struct LamportClock {
     time: u64,
 }
@@ -21,6 +21,7 @@ impl LamportClock {
     /// "R1. Before executing an event (send, received, or internal), $p_{i}$ executes the following:
     /// $C_{i} := C_{i} + d (d > 0)$," where, "$d$ is typically kept at $1$,
     /// since this allows a process to identify the time of each event uniquely at a process while minimizing $d$'s rate of increase."
+    /// "R1. This governs how a process updates the local logical clock (to capture its progress) when it executes an event, whether send, receive, or internal."
     fn tick(&mut self) -> u64 {
         self.time += 1;
         self.time
@@ -32,6 +33,8 @@ impl LamportClock {
     /// 1. $C_{i} := max(C_{i}, C_{msg})$.
     /// 2. Execute R1.
     /// 3. Deliver the message."
+    /// "R2. This governs how a process updates its global logical clock to update its view of the global time and global progress.
+    /// It dictates what information about the logical time a process piggybacks in a message and how the receiving process uses this information to update its view of the global time."
     fn update(&mut self, remote_time: u64) -> u64 {
         self.time = max(self.time, remote_time);
         self.time += 1;
