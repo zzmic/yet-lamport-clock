@@ -1,4 +1,4 @@
-use lamport_clock::Node;
+use clock::lamport_clock::Node;
 use std::collections::HashMap;
 use std::sync::mpsc::{self};
 use std::time::Duration;
@@ -25,9 +25,9 @@ fn main() {
     let mut handles = Vec::new();
     for id in 0..NUM_NODES {
         let mut peers = HashMap::new();
-        for peed_id in 0..NUM_NODES {
-            if id != peed_id {
-                peers.insert(peed_id, senders[peed_id].clone());
+        for peer_id in 0..NUM_NODES {
+            if id != peer_id {
+                peers.insert(peer_id, senders[peer_id].clone());
             }
         }
         let receiver = receivers[id].take().expect("Receiver should be present");
