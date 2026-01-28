@@ -5,14 +5,14 @@ use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// Lamport Clock structure that encapsulates the logical clock value.
-/// Invariant: The logical clock value (time) strictly increases on events.
+/// Lamport Clock structure that encapsulates the logical clock value (time).
+/// Invariant: The logical clock value strictly increases on events.
 pub struct LamportClock {
     time: u64,
 }
 
 impl LamportClock {
-    /// Initialize a new Lamport Clock with time initialized to zero.
+    /// Initialize a new Lamport's logical clock with time initialized to zero.
     fn new() -> Self {
         LamportClock { time: 0 }
     }
@@ -20,8 +20,8 @@ impl LamportClock {
     /// Increment the clock on an event and return the updated time to be stamped on the message.
     /// "R1. Before executing an event (send, received, or internal), $p_{i}$ executes the following:
     /// $C_{i} := C_{i} + d (d > 0)$," where, "$d$ is typically kept at $1$,
-    /// since this allows a process to identify the time of each event uniquely at a process while minimizing $d$'s rate of increase."
-    /// "R1. This governs how a process updates the local logical clock (to capture its progress) when it executes an event, whether send, receive, or internal."
+    /// since this allows a process to identify the time of each event uniquely at a process while minimizing $d$'s rate of increase" [Raynal and Singhal, 1996].
+    /// "R1. This governs how a process updates the local logical clock (to capture its progress) when it executes an event, whether send, receive, or internal" [Raynal and Singhal, 1996].
     fn tick(&mut self) -> u64 {
         self.time += 1;
         self.time
@@ -32,12 +32,11 @@ impl LamportClock {
     /// it executes the following actions:
     /// 1. $C_{i} := max(C_{i}, C_{msg})$.
     /// 2. Execute R1.
-    /// 3. Deliver the message."
+    /// 3. Deliver the message" [Raynal and Singhal, 1996].
     /// "R2. This governs how a process updates its global logical clock to update its view of the global time and global progress.
-    /// It dictates what information about the logical time a process piggybacks in a message and how the receiving process uses this information to update its view of the global time."
+    /// It dictates what information about the logical time a process piggybacks in a message and how the receiving process uses this information to update its view of the global time" [Raynal and Singhal, 1996].
     fn update(&mut self, remote_time: u64) -> u64 {
-        self.time = max(self.time, remote_time);
-        self.time += 1;
+        self.time = max(self.time, remote_time) + 1;
         self.time
     }
 
@@ -94,8 +93,10 @@ impl Node {
         );
 
         while start_time.elapsed() < duration {
+            // Sleep for a random short duration to simulate time between events.
             let sleep_ms = rng.random_range(10..50);
             thread::sleep(Duration::from_millis(sleep_ms));
+            // Choose a "random" action: internal event, send event, or receive event.
             let action_choice = rng.random_range(0..100);
             if action_choice < 33 {
                 self.handle_internal_event();
