@@ -51,3 +51,7 @@ cargo run -- vector-clock
 ## Bibliography
 
 For definitions and explanations, please refer to [bib.bib](https://github.com/zzmic/yet-lamport-clock/blob/main/bib.bib), which contains the references, including quotes, used in this project.
+
+## Disclaimer
+
+This project is _not_ an orthodox implementation or artifact from the referenced literature. Therefore, I should be accountable for any errors and flaws in the implementation and documentation, not the original authors of the sources.
