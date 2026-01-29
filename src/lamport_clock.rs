@@ -53,21 +53,74 @@ pub struct Message {
     content: String,
 }
 
-/// Node structure that encapsulates a Lamport clock, a receiver for incoming messages, and a map of peer nodes to send messages to.
+/// Event structure for centralized total-order logging in the Lamport clock simulation.
+pub struct Event {
+    process_id: usize,
+    time: u64,
+    description: String,
+}
+
+impl Event {
+    /// Constructor for `Event`.
+    fn new(process_id: usize, time: u64, description: String) -> Self {
+        Event {
+            process_id,
+            time,
+            description,
+        }
+    }
+
+    /// Return the total-order key for the event: (logical time, process ID).
+    /// This implements the tie-breaker using a fixed linear ordering of processes:
+    /// "To break ties, we use any arbitrary total ordering $\prec$ of the processes.
+    /// More precisely, we define a relation $\Rightarrow$ as follows:
+    /// if $a$ is an event in process $P_{i}$ and $b$ is an event in process $P_{j}$,
+    /// then $a \Rightarrow b$ if and only if either (i) $C_{i}(a) < C_{j}(b)$ or (ii) $C_{i}(a) = C_{j}(b)$ and $P_{i} \prec P_{j}$.
+    /// It is easy to see that this defines a total ordering, and that the Clock Condition implies that if $a \rightarrow b$ then $a \Rightarrow b$.
+    /// In other words, the relation $\Rightarrow$ is a way of completing the "happened before" partial ordering to a total ordering" [Lamport, 1978].
+    fn total_order_key(&self) -> (u64, usize) {
+        (self.time, self.process_id)
+    }
+}
+
+/// Spawn a centralized logger that prints events in total order.
+pub fn spawn_event_logger(receiver: Receiver<Event>) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let mut events = Vec::new();
+        while let Ok(event) = receiver.recv() {
+            events.push(event);
+        }
+
+        // Sort events by total order: (logical time, process ID).
+        events.sort_by(|a, b| a.total_order_key().cmp(&b.total_order_key()));
+
+        println!("\n--- Lamport Clock Total Order Log (Logical Time, Process ID) ---");
+        for event in events {
+            println!(
+                "[Time: {}, Process: {}] {}",
+                event.time, event.process_id, event.description
+            );
+        }
+    })
+}
+
+/// Node structure that encapsulates a Lamport clock, a receiver for incoming messages, a map of peer nodes to send messages to, and an event sender for logging.
 /// It represents a process in the distributed system.
 pub struct Node {
     id: usize,
     clock: LamportClock,
     receiver: Receiver<Message>,
     peers: HashMap<usize, Sender<Message>>,
+    event_sender: Sender<Event>,
 }
 
 impl Node {
-    /// Constructor for `Node` that initializes (and owns) a Lamport clock, a receiver, and a map of peer nodes, and runs the event loop for a specified duration.
+    /// Constructor for `Node` that initializes (and owns) a Lamport clock, a receiver, a map of peer nodes, and an event sender, and runs the event loop for a specified duration.
     pub fn spawn(
         id: usize,
         receiver: Receiver<Message>,
         peers: HashMap<usize, Sender<Message>>,
+        event_sender: Sender<Event>,
         duration: Duration,
     ) -> thread::JoinHandle<()> {
         thread::spawn(move || {
@@ -76,6 +129,7 @@ impl Node {
                 clock: LamportClock::new(),
                 receiver,
                 peers,
+                event_sender,
             };
             node.run_event_loop(duration);
         })
@@ -121,6 +175,7 @@ impl Node {
             "Process {} performed internal event at (logical) time {}.",
             self.id, t
         );
+        self.log_event(t, format!("internal event"));
     }
 
     /// Handle an event of updating the Lamport clock, sending a message to a random peer, and logging the event.
@@ -147,6 +202,7 @@ impl Node {
                         "Process {} sent message to process {} at (logical) time {}.",
                         self.id, target_id, t
                     );
+                    self.log_event(t, format!("send -> process {}", target_id));
                 }
                 Err(e) => {
                     println!(
@@ -167,7 +223,11 @@ impl Node {
                     let updated_time = self.clock.update(msg.timestamp);
                     println!(
                         "Process {} received message from process {} at (logical) time {}: {}. Clock updated from {} to {}.",
-                        self.id, msg.sender_id, msg.timestamp, msg.content, prev_time, updated_time
+                        self.id, msg.sender_id, msg.timestamp, msg.content, prev_time, updated_time,
+                    );
+                    self.log_event(
+                        updated_time,
+                        format!("receive <- process {}", msg.sender_id),
                     );
                 }
                 Err(TryRecvError::Empty) => break,
@@ -177,5 +237,12 @@ impl Node {
                 }
             }
         }
+    }
+
+    /// Log an event by sending it to the centralized event logger.
+    fn log_event(&self, time: u64, description: String) {
+        let _ = self
+            .event_sender
+            .send(Event::new(self.id, time, description));
     }
 }

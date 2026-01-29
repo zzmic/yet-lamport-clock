@@ -115,6 +115,60 @@ pub struct Message {
     content: String,
 }
 
+/// Event structure for centralized total-order logging in the vector clock simulation.
+pub struct Event {
+    process_id: usize,
+    local_time: u64,
+    clock: Vec<u64>,
+    description: String,
+}
+
+impl Event {
+    /// Constructor for `Event`.
+    fn new(process_id: usize, clock: &VectorClock, description: String) -> Self {
+        let local_time = clock.read()[process_id];
+        Event {
+            process_id,
+            local_time,
+            clock: clock.read().to_vec(),
+            description,
+        }
+    }
+
+    /// Return the total-order key for the event: (local time, process ID).
+    /// This implements the tie-breaker using a fixed linear ordering of processes:
+    /// "To break ties, we use any arbitrary total ordering $\prec$ of the processes.
+    /// More precisely, we define a relation $\Rightarrow$ as follows:
+    /// if $a$ is an event in process $P_{i}$ and $b$ is an event in process $P_{j}$,
+    /// then $a \Rightarrow b$ if and only if either (i) $C_{i}(a) < C_{j}(b)$ or (ii) $C_{i}(a) = C_{j}(b)$ and $P_{i} \prec P_{j}$.
+    /// It is easy to see that this defines a total ordering, and that the Clock Condition implies that if $a \rightarrow b$ then $a \Rightarrow b$.
+    /// In other words, the relation $\Rightarrow$ is a way of completing the "happened before" partial ordering to a total ordering" [Lamport, 1978].
+    fn total_order_key(&self) -> (u64, usize) {
+        (self.local_time, self.process_id)
+    }
+}
+
+/// Spawn a centralized logger that prints events in total order.
+pub fn spawn_event_logger(receiver: Receiver<Event>) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let mut events = Vec::new();
+        while let Ok(event) = receiver.recv() {
+            events.push(event);
+        }
+
+        // Sort events by total order: (local time, process ID).
+        events.sort_by(|a, b| a.total_order_key().cmp(&b.total_order_key()));
+
+        println!("\n--- Vector Clock Total Order Log (Local Time, Process ID) ---");
+        for event in events {
+            println!(
+                "[Local: {}, Process: {}] {} | VC = {:?}",
+                event.local_time, event.process_id, event.description, event.clock
+            );
+        }
+    })
+}
+
 /// Node structure that encapsulates a vector clock, a receiver for incoming messages,
 /// a map of peer nodes to send messages to, and a logger to (centrally) log events.
 pub struct Node {
@@ -122,6 +176,7 @@ pub struct Node {
     clock: VectorClock,
     receiver: Receiver<Message>,
     peers: HashMap<usize, Sender<Message>>,
+    event_sender: Sender<Event>,
 }
 
 impl Node {
@@ -131,6 +186,7 @@ impl Node {
         num_nodes: usize,
         receiver: Receiver<Message>,
         peers: HashMap<usize, Sender<Message>>,
+        event_sender: Sender<Event>,
         duration: Duration,
     ) -> thread::JoinHandle<()> {
         thread::spawn(move || {
@@ -139,6 +195,7 @@ impl Node {
                 clock: VectorClock::new(num_nodes),
                 receiver,
                 peers,
+                event_sender,
             };
             node.run_event_loop(duration);
         })
@@ -204,6 +261,7 @@ impl Node {
             self.id,
             self.clock.read()
         );
+        self.log_event("internal event".to_string());
     }
 
     /// Handle a send event by ticking the vector clock, sending a message to a specific peer, and logging the event.
@@ -236,6 +294,7 @@ impl Node {
                         target_id,
                         self.clock.read()
                     );
+                    self.log_event(format!("send -> process {}", target_id));
                 }
                 Err(e) => {
                     println!(
@@ -276,6 +335,7 @@ impl Node {
                         prev_clock.read(),
                         self.clock.read()
                     );
+                    self.log_event(format!("receive <- process {}", msg.sender_id));
                 }
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
@@ -284,5 +344,12 @@ impl Node {
                 }
             }
         }
+    }
+
+    /// Log an event by sending it to the centralized event logger.
+    fn log_event(&self, description: String) {
+        let _ = self
+            .event_sender
+            .send(Event::new(self.id, &self.clock, description));
     }
 }

@@ -15,6 +15,9 @@ fn run_lamport_clock_simulation() {
         NUM_NODES, RUN_TIME
     );
 
+    let (event_sender, event_receiver) = mpsc::channel();
+    let logger_handle = clock::lamport_clock::spawn_event_logger(event_receiver);
+
     let mut senders = Vec::with_capacity(NUM_NODES);
     let mut receivers = Vec::with_capacity(NUM_NODES);
     for _ in 0..NUM_NODES {
@@ -33,13 +36,20 @@ fn run_lamport_clock_simulation() {
         }
         let receiver = receivers[id].take().expect("Receiver should be present");
         handles.push(clock::lamport_clock::Node::spawn(
-            id, receiver, peers, RUN_TIME,
+            id,
+            receiver,
+            peers,
+            event_sender.clone(),
+            RUN_TIME,
         ));
     }
 
     for handle in handles {
         handle.join().expect("Thread panicked");
     }
+
+    drop(event_sender);
+    logger_handle.join().expect("Logger thread panicked");
 
     println!("Simulation complete.");
 }
@@ -50,6 +60,9 @@ fn vector_clock_simulation() {
         "Starting Vector Clock Simulation with {} nodes for {:?}...",
         NUM_NODES, RUN_TIME
     );
+
+    let (event_sender, event_receiver) = mpsc::channel();
+    let logger_handle = clock::vector_clock::spawn_event_logger(event_receiver);
 
     let mut senders = Vec::with_capacity(NUM_NODES);
     let mut receivers = Vec::with_capacity(NUM_NODES);
@@ -71,13 +84,21 @@ fn vector_clock_simulation() {
         }
         let receiver = receivers[id].take().expect("Receiver should be present");
         handles.push(clock::vector_clock::Node::spawn(
-            id, NUM_NODES, receiver, peers, RUN_TIME,
+            id,
+            NUM_NODES,
+            receiver,
+            peers,
+            event_sender.clone(),
+            RUN_TIME,
         ));
     }
 
     for handle in handles {
         handle.join().expect("Thread panicked");
     }
+
+    drop(event_sender);
+    logger_handle.join().expect("Logger thread panicked");
 
     println!("Vector Clock Simulation complete.");
 }
