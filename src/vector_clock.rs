@@ -6,7 +6,7 @@ use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// Vector Clock structure that encapsulates the vector of logical clock values (times) for each process.
+/// Vector Clock structure that encapsulates the vector of logical clock values (`times`) for each process.
 /// Invariant: Each logical time is monotonically non-decreasing and strictly increases on local events.
 pub struct VectorClock {
     times: Vec<u64>,

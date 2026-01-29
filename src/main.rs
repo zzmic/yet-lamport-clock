@@ -86,7 +86,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     let usage = || {
-        eprintln!("Usage: {} [vector-clock|lamport-clock]", args[0]);
+        eprintln!("Usage: {} <vector-clock|lamport-clock>", args[0]);
         eprintln!("  vector-clock   Run the Vector Clock simulation");
         eprintln!("  lamport-clock  Run the Lamport Clock simulation");
         eprintln!("  -h, --help     Show this help message");

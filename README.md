@@ -18,9 +18,9 @@ The Lamport clock simulation creates a network of `N` processes (default: 5, con
 The Lamport clock captures the **_happens-before_** relation across processes through message passing and clock updates [van Steen and Tanenbaum, 2023]:
 
 > 1. If `a` and `b` are events in the same process and `a` occurs before `b`, then `C(a) < C(b)`, where `C(x)` is the valuation of the Lamport clock at event `x`.
-> 2. If `a` is the event of sending a message in process `P_i` and `b` is the event of receiving _that_ message in process `P_j`, then `C(a) < C(b)`. A message can neither be received before it is sent nor can it be received simultaneously with being sent, as messages take a non-zero (but finite) time to travel from sender to receiver.
+> 2. If `a` is the event of sending a message in process `P_i` and `b` is the event of receiving _that_ message in process `P_j`, then `C(a) < C(b)`. A message cannot be received before it is sent, nor can it be received simultaneously with its sending, as messages take a non-zero (but finite) time to travel from sender to receiver.
 
-Nevertheless, Lamport clocks do not capture causality, i.e., for any pair of events `a` and `b`, if `C(a) < C(b)`, where `C(x)` is the valuation of the Lamport clock at event `x`, it does not necessarily imply that `a` happened before `b`. This limitation is addressed by vector clocks, which are implemented in the `clock::vector_clock::VectorClock` data structure.
+Nevertheless, Lamport clocks do not capture causality; i.e., for any pair of events `a` and `b`, if `C(a) < C(b)`, where `C(x)` is the valuation of the Lamport clock at event `x`, it does not necessarily imply that `a` happened before `b`. This limitation is addressed by vector clocks, which are implemented in the `clock::vector_clock::VectorClock` data structure.
 
 The vector clock simulation creates the same network of `N` processes and runs for the same duration, where each process:
 
@@ -33,6 +33,8 @@ The vector clock(s) capture causality by maintaining the following properties [v
 
 > 1. `VC[i]` is the number of events that have occurred so far at process `P_i`, where `VC` is the vector clock. In other words, `VC_{i}[i]` is the local logical clock at process `P_i`.
 > 2. If `VC_{i}[j] = k`, then process `P_i` knows that `k` events have occurred at process `P_j` (up to the latest message received from `P_j`). It is thus `P_i`'s knowledge of the local logical clock at process `P_j`.
+
+A further extension of vector clocks that can be similarly implemented (but with a much higher complexity, if implemented in a naive fashion) is _matrix clocks_, where each process maintains a matrix of logical clocks, capturing not only its knowledge of other processes' logical clocks but also each process's knowledge about every other process's knowledge.
 
 ## Running the Simulation
 

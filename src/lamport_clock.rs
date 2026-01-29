@@ -5,7 +5,7 @@ use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// Lamport Clock structure that encapsulates the logical clock value (time).
+/// Lamport Clock structure that encapsulates the logical clock value (`time`).
 /// Invariant: The logical clock value strictly increases on events.
 pub struct LamportClock {
     time: u64,
