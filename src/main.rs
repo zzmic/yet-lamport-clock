@@ -6,13 +6,13 @@ use std::time::Duration;
 /// Number of nodes in the distributed system.
 static NUM_NODES: usize = 5;
 /// Duration to run the simulation.
-static RUN_TIME: Duration = Duration::from_secs(5);
+static DURATION: Duration = Duration::from_secs(5);
 
 /// Run the Lamport clock simulation.
 fn run_lamport_clock_simulation() {
     println!(
         "Starting Lamport Clock Simulation with {} nodes for {:?}...",
-        NUM_NODES, RUN_TIME
+        NUM_NODES, DURATION
     );
 
     let (event_sender, event_receiver) = mpsc::channel();
@@ -40,7 +40,7 @@ fn run_lamport_clock_simulation() {
             receiver,
             peers,
             event_sender.clone(),
-            RUN_TIME,
+            DURATION,
         ));
     }
 
@@ -58,7 +58,7 @@ fn run_lamport_clock_simulation() {
 fn vector_clock_simulation() {
     println!(
         "Starting Vector Clock Simulation with {} nodes for {:?}...",
-        NUM_NODES, RUN_TIME
+        NUM_NODES, DURATION
     );
 
     let (event_sender, event_receiver) = mpsc::channel();
@@ -89,7 +89,7 @@ fn vector_clock_simulation() {
             receiver,
             peers,
             event_sender.clone(),
-            RUN_TIME,
+            DURATION,
         ));
     }
 

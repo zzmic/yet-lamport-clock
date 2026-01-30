@@ -8,7 +8,7 @@ It implements Leslie Lamport's logical clock protocol to establish partial order
 
 ## How Things Work
 
-The Lamport clock simulation creates a network of `N` processes (default: 5, configurable) that run concurrently for a specified duration (default: 5 seconds, configurable). Each process:
+The Lamport clock simulation creates a network of `NUM_NODES` processes (default: 5, configurable) that run concurrently for a specified duration, `DURATION` (default: 5 seconds, configurable). Each process:
 
 1. Maintains its own `LamportClock` with a (monotonically) increasing logical clock (time) that starts at zero and _strictly_ increases on each event.
 2. "Randomly" performs internal events, sends messages to peers, or processes incoming messages.
@@ -21,9 +21,9 @@ The Lamport clock captures the **_happens-before_** relation across processes th
 > 1. If `a` and `b` are events in the same process and `a` occurs before `b`, then `C(a) < C(b)`, where `C(x)` is the valuation of the Lamport clock at event `x`.
 > 2. If `a` is the event of sending a message in process `P_i` and `b` is the event of receiving _that_ message in process `P_j`, then `C(a) < C(b)`. A message cannot be received before it is sent, nor can it be received simultaneously with its sending, as messages take a non-zero (but finite) time to travel from sender to receiver.
 
-Nevertheless, Lamport clocks do not capture causality (at least not fully); i.e., for any pair of events `a` and `b`, if `C(a) < C(b)`, where `C(x)` is the valuation of the Lamport clock at event `x`, it does not necessarily imply that `a` happened before `b`. This limitation is addressed by vector clocks, which are implemented in the `clock::vector_clock::VectorClock` data structure.
+Nevertheless, Lamport clocks do not capture _causality_ (at least not fully); i.e., for any pair of events `a` and `b`, if `C(a) < C(b)`, where `C(x)` is the valuation of the Lamport clock at event `x`, it does not necessarily imply that `a` happened before `b`. This limitation is addressed by vector clocks, which are implemented in the `clock::vector_clock::VectorClock` data structure.
 
-The vector clock simulation creates the same network of `N` processes and runs for the same duration, where each process:
+The vector clock simulation creates the same network of `NUM_NODES` processes and runs for the same duration, where each process:
 
 1. Maintains a `VectorClock` (a vector of logical clocks) initialized to zeros.
 2. "Randomly" performs internal events, sends messages to peers, or processes incoming messages, updating its vector clock accordingly.
@@ -31,12 +31,14 @@ The vector clock simulation creates the same network of `N` processes and runs f
 4. Logs events along with the inferred causal relation between the local clock and received timestamps.
 5. Emits events to a centralized logger, which produces a _total order_ by sorting on `(local time, process ID)` for tie breaking, and prints the vector timestamp for each event.
 
-The vector clock(s) capture causality by maintaining the following properties [van Steen and Tanenbaum, 2023]:
+Vector clocks capture causality by maintaining the following properties [van Steen and Tanenbaum, 2023]:
 
 > 1. `VC[i]` is the number of events that have occurred so far at process `P_i`, where `VC` is the vector clock. In other words, `VC_{i}[i]` is the local logical clock at process `P_i`.
 > 2. If `VC_{i}[j] = k`, then process `P_i` knows that `k` events have occurred at process `P_j` (up to the latest message received from `P_j`). It is thus `P_i`'s knowledge of the local logical clock at process `P_j`.
 
-A further extension of vector clocks that can be similarly implemented (but with a much higher complexity, if implemented in a naive fashion) is _matrix clocks_, where each process maintains a matrix of logical clocks, capturing not only its knowledge of other processes' logical clocks but also each process's knowledge about every other process's knowledge.
+Thus, vector clocks can realize the _strong consistency_ property that, assuming vector timestamps are at least of size `n` (where `n` is the number of processes in the distributed system), for any pair of events `a` and `b`, `VC(a) < VC(b)` (where `<` denotes element-wise comparison of the vector timestamps) _if and only if_ `a` happened before `b` [Raynal and Singhal, 1996].
+
+A further extension of vector clocks that can be similarly implemented (but with a much higher complexity, if implemented in a naive fashion) is _matrix clocks_, where each process maintains a matrix of logical clocks, capturing not only its knowledge of other processes' logical clocks but also each process's knowledge about every other process's knowledge [Raynal and Singhal, 1996]. In particular, matrix clocks have the property that if `min_{k}(mt_{i}[k, l]) \geq t`, where `mt_{i}` is the matrix clock at process `P_i`, and `k` and `l` are (any) process indices, then process `P_i` knows, thanks to process `P_k`'s knowledge, that process `P_l` has executed at least `t` events (assuming each process increments its local logical clock on each event by 1) and will never send a message with a timestamp less than or equal to `t` [Raynal and Singhal, 1996].
 
 ## Running the Simulation
 
