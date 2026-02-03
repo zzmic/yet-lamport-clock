@@ -9,3 +9,9 @@ path = "src/lib.rs"
 
 [dependencies]
 rand = "0.9.2"
+
+# Reference: <https://doc.rust-lang.org/stable/clippy/>.
+[lints.clippy]
+all = "warn" # This lint (alone) includes `correctness`, `suspicious`, `style`, `complexity`, and `perf`.
+pedantic = "warn"
+nursery = "warn"

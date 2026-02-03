@@ -7,6 +7,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 /// Vector Clock structure that encapsulates the vector of logical clock values (`times`) for each process.
+///
 /// Invariant: Each logical time is monotonically non-decreasing and strictly increases on local events.
 pub struct VectorClock {
     times: Vec<u64>,
@@ -15,7 +16,7 @@ pub struct VectorClock {
 impl VectorClock {
     /// Initialize a new vector clock with all times initialized to zero.
     fn new(num_nodes: usize) -> Self {
-        VectorClock {
+        Self {
             times: vec![0; num_nodes],
         }
     }
@@ -24,25 +25,24 @@ impl VectorClock {
     /// "R1. Before executing an event, $p_{i}$ updates its local logical time as follows:
     /// $vt_{i}[i] := vt_{i}[i] + d (d > 0)$," where, "$d$ is typically kept at $1$,
     /// since this allows a process to identify the time of each event uniquely at a process while minimizing $d$'s rate of increase" [Raynal and Singhal, 1996].
-    fn tick(&mut self, node_id: usize) {
-        if node_id >= self.times.len() {
-            panic!(
-                "Node ID {} is out of bounds for VectorClock of size {}",
-                node_id,
-                self.len()
-            );
-        }
-        self.times[node_id] += 1;
+    fn tick(&mut self, process_id: usize) {
+        assert!(
+            process_id < self.times.len(),
+            "Process ID {} is out of bounds for VectorClock of size {}",
+            process_id,
+            self.len()
+        );
+        self.times[process_id] += 1;
     }
 
     /// Update the vector clock on receiving a message with a remote vector timestamp.
+    ///
     /// "R2. Each sender process piggybacks a message $m$ with its vector clock value at sending time.
-    /// Upon receiving such a message $(m, vt)$, $p_i$ executes the following sequence of actions:
-    /// 1. Update its logical global time as follows:
-    ///   $1 \leq k \leq n: vt_i[k] := \max(vt_i[k], vt[k])$
+    /// Upon receiving such a message $(m, vt)$, $p_{i}$ executes the following sequence of actions:
+    /// 1. Update its logical global time as follows: $1 \leq k \leq n: vt_{i}[k] := \max(vt_{i}[k], vt[k])$.
     /// 2. Execute R1.
     /// 3. Deliver the message $m$" [Raynal and Singhal, 1996].
-    fn update(&mut self, other: &VectorClock, my_node_id: usize) {
+    fn update(&mut self, other: &Self, my_process_id: usize) {
         assert!(
             self.len() == other.len(),
             "Vector clocks must be of the same length"
@@ -50,11 +50,11 @@ impl VectorClock {
         for (local_time, remote_time) in self.times.iter_mut().zip(other.times.iter()) {
             *local_time = max(*local_time, *remote_time);
         }
-        self.tick(my_node_id);
+        self.tick(my_process_id);
     }
 
     /// Return the length of the vector clock.
-    fn len(&self) -> usize {
+    const fn len(&self) -> usize {
         self.times.len()
     }
 
@@ -65,7 +65,7 @@ impl VectorClock {
 
     /// Clone the vector clock.
     fn clone(&self) -> Self {
-        VectorClock {
+        Self {
             times: self.times.clone(),
         }
     }
@@ -127,7 +127,7 @@ impl Event {
     /// Constructor for `Event`.
     fn new(process_id: usize, clock: &VectorClock, description: String) -> Self {
         let local_time = clock.read()[process_id];
-        Event {
+        Self {
             process_id,
             local_time,
             clock: clock.read().to_vec(),
@@ -143,12 +143,13 @@ impl Event {
     /// then $a \Rightarrow b$ if and only if either (i) $C_{i}(a) < C_{j}(b)$ or (ii) $C_{i}(a) = C_{j}(b)$ and $P_{i} \prec P_{j}$.
     /// It is easy to see that this defines a total ordering, and that the Clock Condition implies that if $a \rightarrow b$ then $a \Rightarrow b$.
     /// In other words, the relation $\Rightarrow$ is a way of completing the "happened before" partial ordering to a total ordering" [Lamport, 1978].
-    fn total_order_key(&self) -> (u64, usize) {
+    const fn total_order_key(&self) -> (u64, usize) {
         (self.local_time, self.process_id)
     }
 }
 
 /// Spawn a centralized logger that prints events in total order.
+#[must_use]
 pub fn spawn_event_logger(receiver: Receiver<Event>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut events = Vec::new();
@@ -157,7 +158,7 @@ pub fn spawn_event_logger(receiver: Receiver<Event>) -> thread::JoinHandle<()> {
         }
 
         // Sort events by total order: (local time, process ID).
-        events.sort_by(|a, b| a.total_order_key().cmp(&b.total_order_key()));
+        events.sort_by_key(Event::total_order_key);
 
         println!("\n--- Vector Clock Total Order Log (Local Time, Process ID) ---");
         for event in events {
@@ -181,6 +182,7 @@ pub struct Node {
 
 impl Node {
     /// Spawn a new thread for the node (process) that runs the event loop for a specified duration.
+    #[must_use]
     pub fn spawn(
         id: usize,
         num_nodes: usize,
@@ -190,7 +192,7 @@ impl Node {
         duration: Duration,
     ) -> thread::JoinHandle<()> {
         thread::spawn(move || {
-            let mut node = Node {
+            let mut node = Self {
                 id,
                 clock: VectorClock::new(num_nodes),
                 receiver,
@@ -222,13 +224,13 @@ impl Node {
             // - Internal burst: pushes the local clock ahead so later messages often become happened-before.
             // - Receive burst: processes messages quickly so some become happened-after.
             step += 1;
-            if step % 9 == 0 {
+            if step.is_multiple_of(9) {
                 let burst = rng.random_range(3..7);
                 for _ in 0..burst {
                     self.handle_internal_event();
                 }
                 continue;
-            } else if step % 5 == 0 {
+            } else if step.is_multiple_of(5) {
                 for _ in 0..3 {
                     self.process_incoming_messages();
                 }
@@ -282,19 +284,19 @@ impl Node {
             ),
         };
 
-        let peers_ids: Vec<usize> = self.peers.keys().cloned().collect();
+        let peers_ids: Vec<usize> = self.peers.keys().copied().collect();
         let target_id = peers_ids[rng.random_range(0..peers_ids.len())];
 
         if let Some(tx) = self.peers.get(&target_id) {
             match tx.send(msg) {
-                Ok(_) => {
+                Ok(()) => {
                     println!(
                         "Process {} sent message to process {} at (vector) time {:?}.",
                         self.id,
                         target_id,
                         self.clock.read()
                     );
-                    self.log_event(format!("send -> process {}", target_id));
+                    self.log_event(format!("send -> process {target_id}"));
                 }
                 Err(e) => {
                     println!(
@@ -327,7 +329,7 @@ impl Node {
                         self.clock.read(),
                         msg.content
                     );
-                    println!("  -> Causal Relationship: {}", relation);
+                    println!("  -> Causal Relationship: {relation}");
 
                     self.clock.update(&msg.timestamps, self.id);
                     println!(

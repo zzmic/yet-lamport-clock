@@ -16,7 +16,7 @@ The Lamport clock simulation creates a network of `NUM_NODES` processes (default
 4. Logs all events with their logical timestamps for analysis.
 5. Emits events to a centralized logger, which produces a _total order_ by sorting on `(logical time, process ID)` to break ties, and prints the logical timestamp for each event.
 
-The Lamport clock captures the **_happens-before_** relation across processes through message passing and clock updates [van Steen and Tanenbaum, 2023]:
+The Lamport clock captures the _happens-before_ relation across processes through message passing and clock updates [van Steen and Tanenbaum, 2023]:
 
 > 1. If `a` and `b` are events in the same process and `a` occurs before `b`, then `C(a) < C(b)`, where `C(x)` is the valuation of the Lamport clock at event `x`.
 > 2. If `a` is the event of sending a message in process `P_i` and `b` is the event of receiving _that_ message in process `P_j`, then `C(a) < C(b)`. A message cannot be received before it is sent, nor can it be received simultaneously with its sending, as messages take a non-zero (but finite) time to travel from sender to receiver.

@@ -10,10 +10,7 @@ static DURATION: Duration = Duration::from_secs(5);
 
 /// Run the Lamport clock simulation.
 fn run_lamport_clock_simulation() {
-    println!(
-        "Starting Lamport Clock Simulation with {} nodes for {:?}...",
-        NUM_NODES, DURATION
-    );
+    println!("Starting Lamport Clock Simulation with {NUM_NODES} nodes for {DURATION:?}...");
 
     let (event_sender, event_receiver) = mpsc::channel();
     let logger_handle = clock::lamport_clock::spawn_event_logger(event_receiver);
@@ -27,14 +24,14 @@ fn run_lamport_clock_simulation() {
     }
 
     let mut handles = Vec::new();
-    for id in 0..NUM_NODES {
+    for (id, receiver) in receivers.iter_mut().enumerate().take(NUM_NODES) {
         let mut peers = HashMap::new();
-        for peer_id in 0..NUM_NODES {
+        for (peer_id, sender) in senders.iter().enumerate().take(NUM_NODES) {
             if id != peer_id {
-                peers.insert(peer_id, senders[peer_id].clone());
+                peers.insert(peer_id, sender.clone());
             }
         }
-        let receiver = receivers[id].take().expect("Receiver should be present");
+        let receiver = receiver.take().expect("Receiver should be present");
         handles.push(clock::lamport_clock::Node::spawn(
             id,
             receiver,
@@ -56,10 +53,7 @@ fn run_lamport_clock_simulation() {
 
 /// Run the Vector clock simulation.
 fn vector_clock_simulation() {
-    println!(
-        "Starting Vector Clock Simulation with {} nodes for {:?}...",
-        NUM_NODES, DURATION
-    );
+    println!("Starting Vector Clock Simulation with {NUM_NODES} nodes for {DURATION:?}...");
 
     let (event_sender, event_receiver) = mpsc::channel();
     let logger_handle = clock::vector_clock::spawn_event_logger(event_receiver);
@@ -75,14 +69,14 @@ fn vector_clock_simulation() {
 
     let mut handles = Vec::new();
 
-    for id in 0..NUM_NODES {
+    for (id, receiver) in receivers.iter_mut().enumerate().take(NUM_NODES) {
         let mut peers = HashMap::new();
-        for peer_id in 0..NUM_NODES {
+        for (peer_id, sender) in senders.iter().enumerate().take(NUM_NODES) {
             if id != peer_id {
-                peers.insert(peer_id, senders[peer_id].clone());
+                peers.insert(peer_id, sender.clone());
             }
         }
-        let receiver = receivers[id].take().expect("Receiver should be present");
+        let receiver = receiver.take().expect("Receiver should be present");
         handles.push(clock::vector_clock::Node::spawn(
             id,
             NUM_NODES,
@@ -116,9 +110,9 @@ fn main() {
     match args.get(1).map(String::as_str) {
         Some("vector-clock") => vector_clock_simulation(),
         Some("lamport-clock") => run_lamport_clock_simulation(),
-        Some("-h") | Some("--help") => usage(),
+        Some("-h" | "--help") => usage(),
         Some(other) => {
-            eprintln!("Unknown argument: {}", other);
+            eprintln!("Unknown argument: {other}");
             usage();
             std::process::exit(1);
         }
