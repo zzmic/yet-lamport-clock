@@ -9,7 +9,7 @@ static NUM_NODES: usize = 5;
 static DURATION: Duration = Duration::from_secs(5);
 
 /// Run the Lamport clock simulation.
-fn run_lamport_clock_simulation() {
+fn run_lamport_clock_simulation() -> Result<(), String> {
     println!("Starting Lamport Clock Simulation with {NUM_NODES} nodes for {DURATION:?}...");
 
     let (event_sender, event_receiver) = mpsc::channel();
@@ -31,7 +31,9 @@ fn run_lamport_clock_simulation() {
                 peers.insert(peer_id, sender.clone());
             }
         }
-        let receiver = receiver.take().expect("Receiver should be present");
+        let receiver = receiver
+            .take()
+            .ok_or_else(|| format!("Failed to take a receiver for node {id}"))?;
         handles.push(clock::lamport_clock::Node::spawn(
             id,
             receiver,
@@ -42,17 +44,23 @@ fn run_lamport_clock_simulation() {
     }
 
     for handle in handles {
-        handle.join().expect("Thread panicked");
+        handle
+            .join()
+            .map_err(|_| "Thread panicked while waiting for the node to finish".to_string())?;
     }
 
     drop(event_sender);
-    logger_handle.join().expect("Logger thread panicked");
+    logger_handle
+        .join()
+        .map_err(|_| "Thread panicked while waiting for the logger to finish".to_string())?;
 
     println!("Simulation complete.");
+
+    Ok(())
 }
 
-/// Run the Vector clock simulation.
-fn vector_clock_simulation() {
+/// Run the vector clock simulation.
+fn run_vector_clock_simulation() -> Result<(), String> {
     println!("Starting Vector Clock Simulation with {NUM_NODES} nodes for {DURATION:?}...");
 
     let (event_sender, event_receiver) = mpsc::channel();
@@ -76,7 +84,9 @@ fn vector_clock_simulation() {
                 peers.insert(peer_id, sender.clone());
             }
         }
-        let receiver = receiver.take().expect("Receiver should be present");
+        let receiver = receiver
+            .take()
+            .ok_or_else(|| format!("Failed to take a receiver for node {id}"))?;
         handles.push(clock::vector_clock::Node::spawn(
             id,
             NUM_NODES,
@@ -88,13 +98,19 @@ fn vector_clock_simulation() {
     }
 
     for handle in handles {
-        handle.join().expect("Thread panicked");
+        handle
+            .join()
+            .map_err(|_| "Thread panicked while waiting for the node to finish".to_string())?;
     }
 
     drop(event_sender);
-    logger_handle.join().expect("Logger thread panicked");
+    logger_handle
+        .join()
+        .map_err(|_| "Thread panicked while waiting for the logger to finish".to_string())?;
 
     println!("Vector Clock Simulation complete.");
+
+    Ok(())
 }
 
 fn main() {
@@ -102,14 +118,24 @@ fn main() {
 
     let usage = || {
         eprintln!("Usage: {} <vector-clock|lamport-clock>", args[0]);
-        eprintln!("  vector-clock   Run the Vector Clock simulation");
-        eprintln!("  lamport-clock  Run the Lamport Clock simulation");
+        eprintln!("  vector-clock   Run the Vector Clock Simulation");
+        eprintln!("  lamport-clock  Run the Lamport Clock Simulation");
         eprintln!("  -h, --help     Show this help message");
     };
 
     match args.get(1).map(String::as_str) {
-        Some("vector-clock") => vector_clock_simulation(),
-        Some("lamport-clock") => run_lamport_clock_simulation(),
+        Some("vector-clock") => {
+            if let Err(error) = run_vector_clock_simulation() {
+                eprintln!("Error: {error}");
+                std::process::exit(1);
+            }
+        }
+        Some("lamport-clock") => {
+            if let Err(error) = run_lamport_clock_simulation() {
+                eprintln!("Error: {error}");
+                std::process::exit(1);
+            }
+        }
         Some("-h" | "--help") => usage(),
         Some(other) => {
             eprintln!("Unknown argument: {other}");
