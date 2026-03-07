@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::env;
 use std::sync::mpsc::{self};
 use std::time::Duration;
+use std::{env, io};
 
 /// Number of nodes in the distributed system.
 static NUM_NODES: usize = 5;
@@ -9,7 +9,7 @@ static NUM_NODES: usize = 5;
 static DURATION: Duration = Duration::from_secs(5);
 
 /// Run the Lamport clock simulation.
-fn run_lamport_clock_simulation() -> Result<(), String> {
+fn run_lamport_clock_simulation() -> Result<(), io::Error> {
     println!("Starting Lamport Clock Simulation with {NUM_NODES} nodes for {DURATION:?}...");
 
     let (event_sender, event_receiver) = mpsc::channel();
@@ -33,7 +33,7 @@ fn run_lamport_clock_simulation() -> Result<(), String> {
         }
         let receiver = receiver
             .take()
-            .ok_or_else(|| format!("Failed to take a receiver for node {id}"))?;
+            .ok_or_else(|| io::Error::other(format!("Failed to take a receiver for node {id}")))?;
         handles.push(clock::lamport_clock::Node::spawn(
             id,
             receiver,
@@ -44,15 +44,19 @@ fn run_lamport_clock_simulation() -> Result<(), String> {
     }
 
     for handle in handles {
-        handle
-            .join()
-            .map_err(|_| "Thread panicked while waiting for the node to finish".to_string())?;
+        handle.join().map_err(|e| {
+            io::Error::other(format!(
+                "Thread panicked while waiting for the node to finish: {e:?}"
+            ))
+        })?;
     }
 
     drop(event_sender);
-    logger_handle
-        .join()
-        .map_err(|_| "Thread panicked while waiting for the logger to finish".to_string())?;
+    logger_handle.join().map_err(|e| {
+        io::Error::other(format!(
+            "Thread panicked while waiting for the logger to finish: {e:?}"
+        ))
+    })?;
 
     println!("Simulation complete.");
 
@@ -60,7 +64,7 @@ fn run_lamport_clock_simulation() -> Result<(), String> {
 }
 
 /// Run the vector clock simulation.
-fn run_vector_clock_simulation() -> Result<(), String> {
+fn run_vector_clock_simulation() -> Result<(), io::Error> {
     println!("Starting Vector Clock Simulation with {NUM_NODES} nodes for {DURATION:?}...");
 
     let (event_sender, event_receiver) = mpsc::channel();
@@ -86,7 +90,7 @@ fn run_vector_clock_simulation() -> Result<(), String> {
         }
         let receiver = receiver
             .take()
-            .ok_or_else(|| format!("Failed to take a receiver for node {id}"))?;
+            .ok_or_else(|| io::Error::other(format!("Failed to take a receiver for node {id}")))?;
         handles.push(clock::vector_clock::Node::spawn(
             id,
             NUM_NODES,
@@ -98,15 +102,19 @@ fn run_vector_clock_simulation() -> Result<(), String> {
     }
 
     for handle in handles {
-        handle
-            .join()
-            .map_err(|_| "Thread panicked while waiting for the node to finish".to_string())?;
+        handle.join().map_err(|e| {
+            io::Error::other(format!(
+                "Thread panicked while waiting for the node to finish: {e:?}"
+            ))
+        })?;
     }
 
     drop(event_sender);
-    logger_handle
-        .join()
-        .map_err(|_| "Thread panicked while waiting for the logger to finish".to_string())?;
+    logger_handle.join().map_err(|e| {
+        io::Error::other(format!(
+            "Thread panicked while waiting for the logger to finish: {e:?}"
+        ))
+    })?;
 
     println!("Vector Clock Simulation complete.");
 
@@ -116,7 +124,7 @@ fn run_vector_clock_simulation() -> Result<(), String> {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let usage = || {
+    let print_usage = || {
         eprintln!("Usage: {} <vector-clock|lamport-clock>", args[0]);
         eprintln!("  vector-clock   Run the Vector Clock Simulation");
         eprintln!("  lamport-clock  Run the Lamport Clock Simulation");
@@ -136,14 +144,14 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Some("-h" | "--help") => usage(),
+        Some("-h" | "--help") => print_usage(),
         Some(other) => {
             eprintln!("Unknown argument: {other}");
-            usage();
+            print_usage();
             std::process::exit(1);
         }
         None => {
-            usage();
+            print_usage();
             std::process::exit(1);
         }
     }
