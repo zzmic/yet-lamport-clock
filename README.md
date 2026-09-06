@@ -29,7 +29,7 @@ The vector clock simulation creates the same network of `NUM_NODES` processes an
 2. "Randomly" performs internal events, sends messages to peers, or processes incoming messages, updating its vector clock accordingly.
 3. Merges incoming vector timestamps using element-wise maxima, then ticks its own component.
 4. Logs events along with the inferred causal relation between the local clock and received timestamps.
-5. Emits events to a centralized logger, which produces a _total order_ by sorting on `(local time, process ID)` for tie breaking, and prints the vector timestamp for each event.
+5. Emits events to a centralized logger, which produces a _total order_ by sorting on `(clock sum, process ID)`, where the clock sum is the sum of the vector timestamp's components and the process ID breaks ties, and prints the vector timestamp for each event. Note that the sum, rather than the process's own component `VC[i]`, is what makes the ordering a _linear extension_ of the happened-before partial order: `VC[i]` counts only the events of `P_i`, so it orders events on distinct processes by unrelated counters, whereas the sum strictly increases along every causal chain.
 
 Vector clocks capture causality by maintaining the following properties [van Steen and Tanenbaum, 2023]:
 

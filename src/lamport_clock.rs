@@ -180,7 +180,7 @@ impl Node {
             "Process {} performed internal event at (logical) time {}.",
             self.id, t
         );
-        self.log_event(t, "internal event".to_string());
+        self.log_event(t, "Internal Event".to_string());
     }
 
     /// Handle an event of updating the Lamport clock, sending a message to a random peer, and logging the event.
@@ -200,14 +200,14 @@ impl Node {
         let peers_ids: Vec<usize> = self.peers.keys().copied().collect();
         let target_id = peers_ids[rng.random_range(0..peers_ids.len())];
 
-        if let Some(tx) = self.peers.get(&target_id) {
-            match tx.send(msg) {
+        if let Some(sender) = self.peers.get(&target_id) {
+            match sender.send(msg) {
                 Ok(()) => {
                     println!(
                         "Process {} sent message to process {} at (logical) time {}.",
                         self.id, target_id, t
                     );
-                    self.log_event(t, format!("send -> process {target_id}"));
+                    self.log_event(t, format!("Send -> Process {target_id}"));
                 }
                 Err(e) => {
                     println!(
@@ -232,7 +232,7 @@ impl Node {
                     );
                     self.log_event(
                         updated_time,
-                        format!("receive <- process {}", msg.sender_id),
+                        format!("Receive <- Process {}", msg.sender_id),
                     );
                 }
                 Err(TryRecvError::Empty) => break,

@@ -119,6 +119,7 @@ pub struct Message {
 pub struct Event {
     process_id: usize,
     local_time: u64,
+    clock_sum: u64,
     clock: Vec<u64>,
     description: String,
 }
@@ -126,17 +127,31 @@ pub struct Event {
 impl Event {
     /// Constructor for `Event`.
     fn new(process_id: usize, clock: &VectorClock, description: String) -> Self {
-        let local_time = clock.read()[process_id];
+        let times = clock.read();
         Self {
             process_id,
-            local_time,
-            clock: clock.read().to_vec(),
+            local_time: times[process_id],
+            clock_sum: times.iter().sum(),
+            clock: times.to_vec(),
             description,
         }
     }
 
-    /// Return the total-order key for the event: (local time, process ID).
-    /// This implements the tie-breaker using a fixed linear ordering of processes:
+    /// Return the total-order key for the event: (clock sum, process ID).
+    ///
+    /// The scalar component is $\sum_{k} vt[k]$, the sum of the vector clock's components,
+    /// rather than the local component $vt[i]$. The local component alone is *not* a valid
+    /// scalar ordering for vector time: $vt_{i}[i]$ counts only the events of $p_{i}$, so two
+    /// events on distinct processes are ordered by unrelated counters and a receive event can
+    /// sort ahead of the send that caused it. The sum, on the contrary, satisfies the Clock
+    /// Condition. It strictly increases along every causal chain, since R1 adds $d = 1$ to one
+    /// component while leaving the rest fixed, and R2 takes a component-wise maximum
+    /// (non-decreasing in every component) before executing R1. Hence $a \rightarrow b$ implies
+    /// $\sum_{k} vt(a)[k] < \sum_{k} vt(b)[k]$, and sorting on the sum yields a linear
+    /// extension of the "happened before" partial order.
+    ///
+    /// Ties (which are exactly the concurrent events the partial order leaves unrelated) are
+    /// broken by the fixed linear ordering of processes, following Lamport's construction:
     /// "To break ties, we use any arbitrary total ordering $\prec$ of the processes.
     /// More precisely, we define a relation $\Rightarrow$ as follows:
     /// if $a$ is an event in process $P_{i}$ and $b$ is an event in process $P_{j}$,
@@ -144,7 +159,7 @@ impl Event {
     /// It is easy to see that this defines a total ordering, and that the Clock Condition implies that if $a \rightarrow b$ then $a \Rightarrow b$.
     /// In other words, the relation $\Rightarrow$ is a way of completing the "happened before" partial ordering to a total ordering" [Lamport, 1978].
     const fn total_order_key(&self) -> (u64, usize) {
-        (self.local_time, self.process_id)
+        (self.clock_sum, self.process_id)
     }
 }
 
@@ -157,14 +172,14 @@ pub fn spawn_event_logger(receiver: Receiver<Event>) -> thread::JoinHandle<()> {
             events.push(event);
         }
 
-        // Sort events by total order: (local time, process ID).
+        // Sort events by total order: (clock sum, process ID).
         events.sort_by_key(Event::total_order_key);
 
-        println!("\n--- Vector Clock Total Order Log (Local Time, Process ID) ---");
+        println!("\n--- Vector Clock Total Order Log (Clock Sum, Process ID) ---");
         for event in events {
             println!(
-                "[Local: {}, Process: {}] {} | VC = {:?}",
-                event.local_time, event.process_id, event.description, event.clock
+                "[Sum: {}, Local: {}, Process: {}] {} | VC = {:?}",
+                event.clock_sum, event.local_time, event.process_id, event.description, event.clock
             );
         }
     })
@@ -263,7 +278,7 @@ impl Node {
             self.id,
             self.clock.read()
         );
-        self.log_event("internal event".to_string());
+        self.log_event("Internal Event".to_string());
     }
 
     /// Handle a send event by ticking the vector clock, sending a message to a specific peer, and logging the event.
@@ -287,8 +302,8 @@ impl Node {
         let peers_ids: Vec<usize> = self.peers.keys().copied().collect();
         let target_id = peers_ids[rng.random_range(0..peers_ids.len())];
 
-        if let Some(tx) = self.peers.get(&target_id) {
-            match tx.send(msg) {
+        if let Some(sender) = self.peers.get(&target_id) {
+            match sender.send(msg) {
                 Ok(()) => {
                     println!(
                         "Process {} sent message to process {} at (vector) time {:?}.",
@@ -296,7 +311,7 @@ impl Node {
                         target_id,
                         self.clock.read()
                     );
-                    self.log_event(format!("send -> process {target_id}"));
+                    self.log_event(format!("Send -> Process {target_id}"));
                 }
                 Err(e) => {
                     println!(
@@ -337,7 +352,7 @@ impl Node {
                         prev_clock.read(),
                         self.clock.read()
                     );
-                    self.log_event(format!("receive <- process {}", msg.sender_id));
+                    self.log_event(format!("Receive <- Process {}", msg.sender_id));
                 }
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
